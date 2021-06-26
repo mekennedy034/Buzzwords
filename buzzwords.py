@@ -11,18 +11,24 @@ MIN_SCORE = 50
 def main():
     pygame.init() ##gotta do this every time
     status_box = pygame.Rect(0, 260, 275, 25)
+    message_box = pygame.Rect(5, 315, 275, 25)
+
     font =  pygame.font.SysFont('arialblack', 18)
+    font2 = pygame.font.SysFont('arialblack', 16)
 
     while True:   
-        answers, hive, key_letter = gen_puzzle()
-        win, screen = play_puzzle(answers, hive, key_letter)
+        answers, hive, key_letter, top_score = gen_puzzle()
+        win, screen = play_puzzle(answers, hive, key_letter, top_score)
         if win:
-            screen.fill(pygame.Color('white'), rect=status_box)
-            again = font.render("Play again? (y/n)", True, pygame.Color('black'))
-            screen.blit(again, status_box)
-            q = get_word(None, None, screen, True)
-            if q == "N":
-                break
+            congrat = font2.render("You win!", True, pygame.Color('black'))
+            screen.blit(congrat, (message_box.x+1, message_box.y+1))
+            
+        screen.fill(pygame.Color('white'), rect=status_box)
+        again = font.render("Play again? (y/n)", True, pygame.Color('black'))
+        screen.blit(again, status_box)
+        q = get_word(None, None, screen, True)
+        if q == "N":
+            break
     pygame.quit()
     sys.exit()
             
@@ -43,7 +49,7 @@ def gen_puzzle():
         total_score = top_score
 
     print(hive, key_letter, top_score, len(answer_list))
-    return answer_list, hive, key_letter
+    return answer_list, hive, key_letter, top_score
 
 ##opens the pangram list
 ##returns a random hive and a key letter
@@ -75,35 +81,54 @@ def answer_gen(hive, key_letter):
     return answer_list, top_score
 
 ##the code that actually plays the puzzle
-def play_puzzle(answers, hive, key_letter):
+def play_puzzle(answers, hive, key_letter, max_score):
     ##set up the pygames window
-    screen = pygame.display.set_mode((750, 345))
+    screen = pygame.display.set_mode((975, 360))
     pygame.display.set_caption("Buzzwords")
     font = pygame.font.SysFont('arialblack', 16)
     message_box = pygame.Rect(5, 315, 275, 25)
+    progress_box = pygame.Rect(5, 345, 274, 8)
+    solve_box = pygame.Rect(3,3, 39, 19)
 
 
     ##blank variables
     score = 0
     found_words = []
+    cont = True
 
     ##gameplay loop: get word, check word, score
+    display_hive(hive, key_letter, screen)   
+    display_status(len(answers), score, max_score, found_words, screen)
+    display_progress(score, screen, max_score)
     while len(found_words) < len(answers):
-        display_hive(hive, key_letter, screen)   
-        display_status(len(answers), score, found_words, screen)
 
         word = get_word(key_letter, hive, screen, False)
-        if word in answers and word not in found_words:
+        if word == "*solve":
+            display_solve(answers, found_words, screen)
+            return False, screen
+        elif word in answers and word not in found_words:
             score += score_word(word)
             found_words.append(word)
         elif word in found_words:
             error_display(4, screen)
         elif word not in answers:
             error_display(5, screen)
-    
-    display_status(len(answers), score, found_words, screen)
-    win = font.render("You win!", True, pygame.Color('black'))
-    screen.blit(win, (message_box.x+1, message_box.y+1))
+
+        display_hive(hive, key_letter, screen)   
+        display_status(len(answers), score, max_score, found_words, screen)
+        display_progress(score, screen, max_score)
+
+        if score >= max_score * 0.7 and cont:
+            display_progress(score, screen, max_score)
+            genius = font.render("Genius! Continue? (y/n)", True, pygame.Color('black'))
+            pygame.draw.rect(screen, pygame.Color("white"), message_box)
+            screen.blit(genius, (message_box.x+1, message_box.y+1))
+            q = get_word(None, None, screen, True)
+            if q == "N":
+                return True, screen
+            else:
+                cont = False
+
     pygame.display.update()
     return True, screen
     
@@ -113,6 +138,14 @@ def display_hive(hive, key_letter, screen):
     screen.fill((255,255,255))
     board = pygame.image.load("hive_board.bmp")
     screen.blit(board, (0,0))
+    ##add the solve button
+    outline_box = pygame.Rect(1,1, 45, 23)
+    solve_box = pygame.Rect(4,3, 39, 19)
+    font_b = pygame.font.SysFont('arialblack', 12)
+    solve_it = font_b.render("Solve", True, pygame.Color('black'))
+    pygame.draw.rect(screen, pygame.Color('gray'), outline_box)
+    pygame.draw.rect(screen, pygame.Color('lightgray'), solve_box)
+    screen.blit(solve_it, (solve_box.x+1, solve_box.y))
 
     hive_list = [c for c in hive]
     hive_list.remove(key_letter)
@@ -143,13 +176,13 @@ def display_hive(hive, key_letter, screen):
 
 ## blits a status bar with current score and number of words found
 ## blits a list of found words (for reference)
-def display_status(answer_no, score, found_words, screen):
+def display_status(answer_no, score, max_score, found_words, screen):
 
-    font2 = pygame.font.SysFont('arialblack', 18)
-    s = "Words: " + str(len(found_words))+ "/" + str(answer_no) + "     Score:" + str(score)
+    font2 = pygame.font.SysFont('arialblack', 16)
+    s = "Words: " + str(len(found_words))+ "/" + str(answer_no) + "   Score: " + str(score) + "/" + str(max_score)
     info = font2.render(s, True, pygame.Color('black'))
     info_box = info.get_rect()
-    info_box.center = (146, 270)
+    info_box.center = (137, 270)
     screen.blit(info, info_box)
 
     font3 = pygame.font.SysFont('arial', 16)
@@ -168,7 +201,7 @@ def display_status(answer_no, score, found_words, screen):
     for i in range(len(all_found)):
         word = all_found[i][0]
         word_box = all_found[i][1]
-        word_box.topleft = (300 + ((widest+10)*(i//14)), ((i % 14)*24))
+        word_box.topleft = (300 + ((widest+10)*(i//16)), ((i % 16)*22))
         screen.blit(word, word_box)
 
     pygame.display.update()
@@ -188,7 +221,61 @@ def error_display(error_number, screen):
     screen.blit(error[error_number], (message_box.x+1, message_box.y+1))
 
     pygame.display.update()
-    pygame.time.wait(750)
+    pygame.time.wait(600)
+
+def display_progress(score, screen, max_score):
+    progress = round(score/max_score, 4)
+    progress_box = pygame.Rect(5, 340, 274, 17)
+    progress_bar = pygame.Rect(5, 340, 274, 17)
+    progress_bar.width = int(progress * progress_box.width)
+    pygame.draw.rect(screen, pygame.Color('gold'), progress_bar)
+
+    rank_points = {.0000: "Beginner",
+                   .0200: "Good Start",
+                   .0500: "Moving Up",
+                   .0800: "Good",
+                   .1500: "Solid",
+                   .2500: "Nice",
+                   .4000: "Great",
+                   .5000: "Amazing",
+                   .7000: "Genius",
+                   1.0000: "Queen Bee"}
+
+    for r in rank_points:
+        if progress >= r:
+            rank = rank_points[r]
+    
+    font = pygame.font.SysFont('arialblack', 12)
+    progress = font.render(str(round(progress*100, 2))+"% " + rank, True, pygame.Color('black'))
+    screen.blit(progress, (progress_box.x+1, progress_box.y+1))
+    pygame.display.update()
+
+def display_solve(answers, found, screen):
+    answer_box = pygame.Rect(300, 0, 675, 360)
+    font2 = pygame.font.SysFont('arial', 16)
+   
+    screen.fill(pygame.Color('white'), answer_box)
+    answers = sorted(answers)
+    widest = 0
+    all_word = []
+    for i in range(len(answers)):
+        w = answers[i]
+        if w in found:
+            color = pygame.Color('black')
+        else:
+            color = pygame.Color('gray')
+        word = font2.render(w, True, color)
+        word_box = word.get_rect()
+        if word_box.width > widest:
+            widest = word_box.width
+        all_word.append((word, word_box))
+
+    for i in range(len(all_word)):
+        word = all_word[i][0]
+        word_box = all_word[i][1]
+        word_box.topleft = (300 + ((widest+10)*(i//14)), ((i % 14)*24))
+        screen.blit(word, word_box)
+    pygame.display.update()
 
 ##Gets input from player
 ##validates it
@@ -199,12 +286,21 @@ def get_word(key_letter, hive, screen, win):
     text = ""
     input_box = pygame.Rect(5, 290, 275, 25)
     message_box = pygame.Rect(5, 315, 275, 25)
-    input_active = True
+    solve_box = pygame.Rect(3,3, 39, 19)
 
+    input_active = True
 
     while True:    
         while input_active:
             for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+
+                mouse = pygame.mouse.get_pos()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse = pygame.mouse.get_pos()
+                    if solve_box.collidepoint(mouse):
+                        return "*solve"
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
                         word = text.upper()
@@ -228,6 +324,9 @@ def get_word(key_letter, hive, screen, win):
         elif set(word).issubset(set(hive)):
             if len(word) >= 4:
                 if key_letter in word:
+                    if len(set(word)) == 7:
+                        pan = font.render("Pangram!", True, pygame.Color('black'))
+                        screen.blit(pan, message_box)
                     return word.upper()
                 else:
                     error_display(1, screen)
